@@ -1,0 +1,79 @@
+Global:
+  Access: release
+  Region: cn-hongkong
+  AccessKeyId: ${Env(AccessKeyId)}
+  AccessKeySecret: ${Env(AccessKeySecret)}
+  OSSConfBucketSourceName: serverlessbook-image-source
+  OSSConfBucketTargetName: serverlessbook-image-target
+  OSSConfObjectSignUrlTimeOut: 1200
+
+SourceBucket:
+  Component: oss
+  Provider: alibaba
+  Access: ${Global.Access}
+  Properties:
+    Region: ${Global.Region}
+    Bucket: ${Global.OSSConfBucketSourceName}
+    CodeUri: ./test
+
+TargetBucket:
+  Component: oss
+  Provider: alibaba
+  Access: ${Global.Access}
+  Properties:
+    Region: ${Global.Region}
+    Bucket: ${Global.OSSConfBucketTargetName}
+    Acl: public-read
+
+ServerlessBookImageDemo:
+  Component: fc
+  Provider: alibaba
+  Access: ${Global.Access}
+  Extends:
+    deploy:
+      - Hook: s ServerlessBookImageDemo install docker
+        Src: ./src
+        Pre: true
+  Properties:
+    Region:
+      Service: ${Global.Region}
+      Name: serverless-book-case
+      Description: Serverless 实践图书案例
+      Vpc:
+        SecurityGroupId: sg-j6c45wkv4vf4ghg104mc
+        VSwitchIds:
+          - vsw-j6c797ywau90y6y03ohbq
+        VpcId: vpc-j6c9lk4av0859r4e0tff7
+      Log: Auto
+      Nas: Auto
+    Function:
+      Name: other-image-compress-wartermark
+      Description: 图片压缩、水印
+      CodeUri: ./src
+      Handler: index.handler
+      MemorySize: 128
+      Runtime: python3
+      Timeout: 5
+      Environment:
+        - Key: AccessKeyId
+          Value: ${Global.AccessKeyId}
+        - Key: AccessKeySecret
+          Value: ${Global.AccessKeySecret}
+        - Key: OSSConfBucketSourceName
+          Value: ${SourceBucket.Output.Bucket}
+        - Key: OSSConfBucketTargetName
+          Value: ${TargetBucket.Output.Bucket}
+        - Key: OSSConfEndPoint
+          Value: ${SourceBucket.Output.Endpoint.Publish}
+        - Key: OSSConfObjectSignUrlTimeOut
+          Value: '1200'
+      Triggers:
+        - Name: OSSTrigger
+          Type: OSS
+          Parameters:
+            Bucket: ${SourceBucket.Output.Bucket}
+            Events:
+              - 'oss:ObjectCreated:*'
+            Filter:
+              Prefix: ''
+              Suffix: ''
